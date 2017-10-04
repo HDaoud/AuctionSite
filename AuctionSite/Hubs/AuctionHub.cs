@@ -6,6 +6,9 @@ using Microsoft.AspNet.SignalR;
 using Microsoft.AspNet.SignalR.Hubs;
 using System.Threading;
 using AuctionSite.Models;
+using System.Reactive;
+using System.Reactive.Disposables;
+using System.Reactive.Linq;
 
 namespace AuctionSite
 {
@@ -13,13 +16,14 @@ namespace AuctionSite
     public class AuctionHub : Hub
     {
         #region Properties
-        static private Timer timer;
+        //static private Timer timer;
         public static bool initialized = false;
         public static object initLock = new object(); 
         //AuctionViewModel is used to store and keep track of bid information
         static public AuctionViewModel auctionViewModel;
         public static int secs_10 = 10000;
         public static int sec = 1000;
+        public static bool isOver = false;
         #endregion
 
         #region Initialization
@@ -40,9 +44,30 @@ namespace AuctionSite
         private void InitializeAuction()
         {            
             // Initialize model
-            auctionViewModel = new AuctionViewModel(0, 10, DateTime.Now.AddSeconds(59), 10);
+            auctionViewModel = new AuctionViewModel(0, 10, DateTime.Now.AddSeconds(60), 10);
 
-            timer = new System.Threading.Timer(TimerExpired, null, sec, 0);
+            //timer = new System.Threading.Timer(TimerExpired, null, sec, 0);
+            var Generator = Observable.Interval(TimeSpan.FromSeconds(1)).
+                TakeWhile(_ => { return auctionViewModel.TimeRemaining >= 0; }).Publish().RefCount();            
+
+            var obsrvr = Generator.Subscribe(_ =>
+            {                
+                    Clients.All.updateRemainingTime(string.Format("{0:hh\\:mm\\:ss}", auctionViewModel.GetTimeRemaining()));               
+            }        
+            , 
+            () => 
+            {
+                isOver = true;
+                Clients.All.updateRemainingTime("00:00:00");
+                Clients.All.finishBidding();
+                Clients.All.addMessage("Time Expired!");
+                if (!String.IsNullOrEmpty(auctionViewModel.LastUserBid))
+                    Clients.All.addMessage(string.Format("Congratulations {0}! \n {0} has won the auction with {1}$ \n on {2}", auctionViewModel.LastUserBid, auctionViewModel.ValueLastBid, auctionViewModel.LastBid));
+                else
+                    Clients.All.addMessage(string.Format("Oh, poor product! Somebody will take you home someday!"));
+
+                Clients.All.addMessage("\n-------");
+            });
 
             initialized = true;
         }
@@ -54,25 +79,26 @@ namespace AuctionSite
         /// It send bid results when the bid is over and update clients to prevent new bids
         /// </summary>
         /// <param name="state"></param>
-        public void TimerExpired(object state)
-        {
-            if (auctionViewModel.TimeRemaining > 0)
-            {
-                Clients.All.updateRemainingTime(string.Format("{0:hh\\:mm\\:ss}", auctionViewModel.GetTimeRemaining()));
-                timer.Change(sec, 0);
-            }
-            else
-            {
-                timer.Dispose();
-                Clients.All.updateRemainingTime("00:00:00");
-                Clients.All.finishBidding();
-                AddMessage("Time Expired");
-                if (!String.IsNullOrEmpty(auctionViewModel.LastUserBid))
-                    AddMessage(string.Format("Congratulations {0}! \n {0} has won the auction with {1}$ \n on {2}", auctionViewModel.LastUserBid, auctionViewModel.ValueLastBid, auctionViewModel.LastBid));
-                else
-                    AddMessage(string.Format("Oh, poor product! Somebody will take you home someday!"));
-            }
-        }
+        //public void TimerExpired(object state)
+        //{
+        //    if (auctionViewModel.TimeRemaining > 0)
+        //    {
+        //        Clients.All.updateRemainingTime(string.Format("{0:hh\\:mm\\:ss}", auctionViewModel.GetTimeRemaining()));
+        //        timer.Change(sec, 0);
+        //    }
+        //    else
+        //    {
+        //        timer.Dispose();
+        //        isOver = true;
+        //        Clients.All.updateRemainingTime("00:00:00");
+        //        Clients.All.finishBidding();
+        //        AddMessage("Time Expired");
+        //        if (!String.IsNullOrEmpty(auctionViewModel.LastUserBid))
+        //            AddMessage(string.Format("Congratulations {0}! \n {0} has won the auction with {1}$ \n on {2}", auctionViewModel.LastUserBid, auctionViewModel.ValueLastBid, auctionViewModel.LastBid));
+        //        else
+        //            AddMessage(string.Format("Oh, poor product! Somebody will take you home someday!"));
+        //    }
+        //}
 
         /// <summary>
         /// Server messages to clients. Now it only report bid results
@@ -104,9 +130,10 @@ namespace AuctionSite
         {
             auctionViewModel.PlaceBid(decimal.Parse(valueBid), user);
 
-            CallRefresh();
-
             NotifyNewBid(user, decimal.Parse(valueBid));
+
+            CallRefresh();
+            
         }
 
         /// <summary>
@@ -115,6 +142,12 @@ namespace AuctionSite
         public void CallRefresh()
         {
             Clients.All.auctionRefresh(auctionViewModel);
+            if(isOver)
+            {
+                Clients.All.updateRemainingTime("00:00:00");
+                Clients.All.finishBidding();
+                AddMessage("Time Expired");
+            }
         }
         #endregion
 

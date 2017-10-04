@@ -13,7 +13,7 @@ namespace AuctionSite.Models
         {
             get
             {
-                return (int)Math.Abs(GetTimeRemaining().TotalSeconds);
+                return (int) GetTimeRemaining().TotalSeconds;
             }
         }
 
@@ -51,7 +51,7 @@ namespace AuctionSite.Models
 
         public TimeSpan GetTimeRemaining()
         {
-            return DateTime.Now.Subtract(EndTime);
+            return EndTime.Subtract(DateTime.Now);
         }
 
         public void SetEndTime()

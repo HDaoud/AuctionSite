@@ -80,9 +80,20 @@
     <script src="~/Scripts/jquery.signalR-2.2.2.js"></script>
     <script src="~/signalr/hubs"></script>
     <script src="~/Scripts/util/util-timer.js"></script>
+    @*<script src="~/Scripts/rx.js"></script>
+    <script src="~/Scripts/rx.coincidence.js"></script>    
+    <script src="~/Scripts/rx.binding.js"></script>
+    <script src="~/Scripts/rx.time.js"></script>*@    
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/rxjs/2.2.26/rx.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/rxjs/2.2.26/rx.async.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/rxjs/2.2.26/rx.coincidence.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/rxjs/2.2.26/rx.binding.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/rxjs/2.2.26/rx.time.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/rxjs-dom/2.0.7/rx.dom.js"></script>    
 
     <script type="text/javascript"> 
         var biddingActive = true;
+        var bidButton = $('#bid');
         $(function () {
 
             //timer is a javascript 'class' resides in util-timer.js
@@ -91,7 +102,7 @@
             //get reference to SignalR hub
             var auction = $.connection.Auction;
 
-            //Get information from server when bid is over and the which client has won
+            //Get information from server when bid is over and which client has won
             auction.client.addMessage = function (message) {
                 var txtArea = $('#messages');
                 txtArea.val(txtArea.val() + "\n" + message);
@@ -107,9 +118,9 @@
                 $('#price').val(model.ValueNextBid);
                 $('#total-bids span').text(model.BidsTotal);
 
-                $('#remaining-time').val(utilTimer.getRemainingTime(new Date(model.EndTimeFullText)));
-
-                utilTimer.initializeDecrementTimeRemaining();
+                //$('#remaining-time').val(utilTimer.getRemainingTime(new Date(model.EndTimeFullText)));
+                $('#remaining-time').val(model.GetTimeRemaining());
+                //utilTimer.initializeDecrementTimeRemaining();
             }
 
             //This is called by a timer thread in the hub to update the remaining time
@@ -120,10 +131,15 @@
             //This called when reamining time reaches 0, to prevent new biddings
             auction.client.finishBidding = function () {
                 biddingActive = false;
+                $('#bid').removeClass('btn-success');
+                $('#bid').addClass('btn-danger');
+                $('#bid').addClass('disabled');
             }
 
             //The interaction of client with hub server
-            $('#bid').click(function () {                
+            var bidClickStream = Rx.Observable.fromEvent(bidButton, 'click');
+            var publishBid = bidClickStream.subscribe(function () {
+                //alert("Working!");
                 if (!biddingActive) {
                     alert("Auction has ended!");
                     return;
