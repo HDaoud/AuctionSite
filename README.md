@@ -1,5 +1,5 @@
 # AuctionSite
-A simple website in ASP.NET MVC that uses SignalR 2.2
+A simple website in ASP.NET MVC that uses SignalR 2.2 (in WithRx branch, RxJS and Rx.NET is used alongside SignalR)
 - each new bid adds 1 cent to the price and 10 seconds to the count-down time.
 - The last user to bid before timer reaches 0, is the winner.
 
